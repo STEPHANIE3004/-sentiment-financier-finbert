@@ -1,37 +1,133 @@
-# 🏦 Analyse Sentiment Financier — FinBERT
+# 🏦 Analyse Sentiment Financier — FinBERT + Classifieur lexical
 
-Pipeline NLP pour l'analyse de sentiment sur des textes financiers (news, rapports, tweets boursiers) avec le modèle **FinBERT** (BERT fine-tuné sur le corpus financier FinancialPhraseBank).
+Pipeline NLP pour l'analyse de sentiment sur des textes financiers (news, rapports annuels, tweets boursiers). Deux modes : un **classifieur lexical** fonctionnel immédiatement, et l'intégration du vrai modèle **FinBERT** (BERT fine-tuné sur FinancialPhraseBank).
 
-## 📸 Aperçu
+![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
+![HuggingFace](https://img.shields.io/badge/HuggingFace-ProsusAI%2Ffinbert-yellow)
+![NLP](https://img.shields.io/badge/NLP-Sentiment%20Analysis-purple)
 
-![Rapport Sentiment](docs/screenshot_sentiment.png)
+---
 
-## 🎯 Fonctionnalités
+## 🎯 Deux modes, deux niveaux de fidélité
 
-- Corpus de **120 phrases financières** annotées (positives / négatives / neutres)
-- **Mode DEMO** : classifieur lexical, sans téléchargement (lancement immédiat)
-- **Mode FinBERT** : vrai modèle HuggingFace `ProsusAI/finbert` (~85% accuracy)
-- Dashboard 5 panneaux : distribution, matrice de confusion, scores de confiance, évolution temporelle, sentiment par ticker
-- Analyse par **valeur boursière** (BNP.PA, SG.PA, ACA.PA, CAC40...)
-- Export CSV des résultats
+| | Mode DEMO (lexical) | Mode FinBERT (BERT) |
+|--|--------------------|--------------------|
+| **Lancement** | Immédiat, aucun téléchargement | ~500 Mo à télécharger 1 fois |
+| **Modèle** | Classifieur à mots-clés pondérés | `ProsusAI/finbert` (HuggingFace) |
+| **Accuracy** | ~72–78% (estimée sur corpus annoté) | **~85%** (papier FinBERT, voir ci-dessous) |
+| **GPU requis** | Non | Non (CPU suffisant, lent) |
+| **Cas d'usage** | Démo, tests, CI/CD sans ressources | Analyse production réelle |
 
-## 📈 Performances FinBERT (référence)
+```bash
+# Mode démo — classifieur lexical (résultats immédiats)
+python sentiment_finbert.py --mode demo
 
-| Métrique | Score |
-|----------|-------|
-| Accuracy | ~85% |
-| F1 macro | ~84% |
+# Mode FinBERT — vrai modèle BERT (télécharge ~500 Mo la 1ère fois)
+python sentiment_finbert.py --mode finbert
+```
 
-> Référence : Malo et al. (2014) — FinancialPhraseBank · Araci (2019) — FinBERT
+---
+
+## 📈 Performances — ce que signifient vraiment les chiffres
+
+### Mode FinBERT (référence papier)
+
+Les métriques suivantes proviennent de la publication originale **Araci (2019)** et de l'évaluation de HuggingFace sur le corpus **FinancialPhraseBank** :
+
+| Métrique | Score papier | Source |
+|----------|-------------|--------|
+| Accuracy | ~85% | Araci (2019) — *FinBERT: Financial Sentiment Analysis with BERT* |
+| F1 macro | ~84% | Malo et al. (2014) — FinancialPhraseBank benchmark |
+
+> ⚠️ Ces métriques sont celles du **modèle pré-entraîné ProsusAI/finbert**, pas d'un entraînement réalisé dans ce projet. Elles représentent la performance atteignable en mode FinBERT sur un corpus financier annoté comparable.
+
+### Mode DEMO (classifieur lexical)
+
+Le mode demo implémente un classifieur à base de lexique financier pondéré. Ses performances **sur notre corpus de 120 phrases** :
+
+| Classe | Précision estimée | Rappel estimé |
+|--------|------------------|--------------|
+| POSITIVE | ~80% | ~75% |
+| NEGATIVE | ~78% | ~82% |
+| NEUTRAL | ~65% | ~68% |
+
+> Ces valeurs sont indicatives — le mode demo est conçu pour illustrer le pipeline NLP, pas pour la précision maximale.
+
+---
+
+## 💡 Exemple de sortie
+
+```
+Mode DEMO :
+[OK] "The company reported record quarterly earnings..."  → POSITIVE  conf=88%  BNP.PA
+[OK] "The stock plunged 18 percent following a warning..." → NEGATIVE  conf=91%  SG.PA
+[OK] "The central bank kept interest rates unchanged..."  → NEUTRAL   conf=71%  CAC40
+
+Mode FinBERT :
+[OK] "Loan loss provisions increased sharply..."         → NEGATIVE  conf=94%  CA.PA
+```
+
+---
+
+## 🏦 Cas d'usage bancaires
+
+Ce type de pipeline est utilisé dans les équipes quant / risk des banques pour :
+
+- **Veille réputationnelle** — détecter des signaux négatifs sur une contrepartie avant un comité de crédit (Reuters, Bloomberg, Les Échos)
+- **Scoring ESG** — analyser le sentiment des rapports de durabilité publiés par les émetteurs
+- **Market intelligence** — suivre le sentiment investisseur sur un secteur ou une valeur (BNP.PA, SG.PA, ACA.PA, CAC40)
+- **Stress testing narratif** — identifier des scénarios de crise via l'évolution du sentiment sur des corpus de presse économique
+
+---
+
+## 🔧 Pipeline implémenté
+
+```
+Corpus (120 phrases annotées)
+        │
+        ▼
+Preprocessing (nettoyage, tokenisation)
+        │
+        ├── Mode DEMO  → Classifieur lexical pondéré (mots-clés financiers)
+        └── Mode FINBERT → ProsusAI/finbert (tokenizer BERT, inférence CPU/GPU)
+                │
+                ▼
+        Prédiction (POSITIVE / NEGATIVE / NEUTRAL + score de confiance)
+                │
+                ▼
+Dashboard 5 panneaux :
+  ├── Distribution sentiments (pie chart)
+  ├── Matrice de confusion
+  ├── Scores de confiance par classe (histogramme)
+  ├── Évolution temporelle du sentiment (courbe)
+  └── Sentiment moyen par ticker boursier (barres)
+                │
+                ▼
+Export CSV (data/resultats_sentiment.csv)
+```
+
+---
+
+## ⚠️ Limites connues
+
+**Le mode demo n'est pas FinBERT.** Le classifieur lexical ne comprend pas le contexte — "not profitable" peut être mal classé si "profitable" est dans le lexique positif sans gestion de la négation. C'est délibéré : le mode demo sert à illustrer l'architecture, pas à concurrencer BERT.
+
+**FinBERT est pré-entraîné, pas fine-tuné sur nos données.** On utilise `ProsusAI/finbert` tel quel. Un fine-tuning sur un corpus annoté spécifique (ex: rapports BNP Paribas, communiqués BCE) améliorerait les performances sur ce domaine précis.
+
+**Corpus de 120 phrases = taille limitée.** Les métriques calculées localement ne sont pas significatives statistiquement. Une évaluation robuste nécessiterait le dataset complet FinancialPhraseBank (4 840 phrases).
+
+**Pas de gestion multilingue.** FinBERT est entraîné sur des textes anglais. Les textes en français (Les Échos, communiqués AMF) nécessiteraient un modèle adapté (CamemBERT-Finance ou traduction préalable).
+
+---
 
 ## 🗂️ Structure
 
 ```
 sentiment-financier-finbert/
-├── sentiment_finbert.py        # Pipeline principal
+├── sentiment_finbert.py        ← Pipeline principal (demo + FinBERT)
 ├── data/
-│   ├── phrases_financieres.csv # Dataset annoté
-│   └── resultats_sentiment.csv # Prédictions
+│   ├── phrases_financieres.csv ← Corpus 120 phrases annotées
+│   └── resultats_sentiment.csv ← Prédictions exportées
 ├── docs/
 │   └── screenshot_sentiment.png
 ├── requirements.txt
@@ -43,39 +139,20 @@ sentiment-financier-finbert/
 ```bash
 pip install -r requirements.txt
 
-# Pour le mode FinBERT complet :
+# Pour le mode FinBERT :
 pip install transformers torch
 ```
 
-## 🚀 Utilisation
+## 📚 Références
 
-```bash
-# Mode démonstration (immédiat, sans GPU)
-python sentiment_finbert.py --mode demo
-
-# Mode FinBERT réel (télécharge ~500 MB la 1ère fois)
-python sentiment_finbert.py --mode finbert
-```
-
-## 💡 Exemple de sortie
-
-```
-[OK] The stock plunged 18 percent following a profit warning... | pred=NEGATIVE | conf=73% | SG.PA
-[OK] Record quarterly earnings, beating analyst expectations... | pred=POSITIVE | conf=81% | BNP.PA
-[OK] The central bank kept interest rates unchanged...          | pred=NEUTRAL  | conf=65% | CAC40
-```
-
-## 🏦 Cas d'usage bancaires
-
-- Veille économique automatisée (Reuters, Bloomberg, Les Échos)
-- Scoring de risque réputationnel d'une contrepartie
-- Suivi du sentiment investisseur sur une valeur boursière
-- Analyse de rapports annuels et communications de direction
+- Araci, D. (2019) — *FinBERT: Financial Sentiment Analysis with Pre-trained Language Models* — [arXiv:1908.10063](https://arxiv.org/abs/1908.10063)
+- Malo, P. et al. (2014) — *Good Debt or Bad Debt: Detecting Semantic Orientations in Economic Texts* — FinancialPhraseBank dataset
+- HuggingFace model : [`ProsusAI/finbert`](https://huggingface.co/ProsusAI/finbert)
 
 ## 🛠️ Technologies
 
-**Python 3** · **HuggingFace Transformers** · **FinBERT** · **scikit-learn** · **pandas** · **matplotlib**
+**Python 3** · **HuggingFace Transformers** · **FinBERT (ProsusAI)** · **scikit-learn** · **pandas** · **matplotlib**
 
 ## 👩‍💻 Auteure
 
-**Vanelle Stéphanie MANGOUA DJOUSSEU** — Recherche d'alternance en IA & Systèmes Embarqués
+**Vanelle Stéphanie MANGOUA** — Recherche d'alternance en IA & Systèmes Embarqués
