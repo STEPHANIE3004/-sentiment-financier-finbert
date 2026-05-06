@@ -1,10 +1,11 @@
-# 🏦 Analyse Sentiment Financier — FinBERT + Classifieur lexical
+# 🏦 Analyse Sentiment Financier — FinBERT + Yahoo Finance API
 
-Pipeline NLP pour l'analyse de sentiment sur des textes financiers (news, rapports annuels, tweets boursiers). Deux modes : un **classifieur lexical** fonctionnel immédiatement, et l'intégration du vrai modèle **FinBERT** (BERT fine-tuné sur FinancialPhraseBank).
+Pipeline NLP pour l'analyse de sentiment sur des textes financiers (news, rapports annuels, tweets boursiers), couplé à **Yahoo Finance API (yfinance)** pour corréler le sentiment du jour J avec les rendements boursiers réels du jour J+1. Deux modes de classification : un **classifieur lexical** fonctionnel immédiatement, et l'intégration du vrai modèle **FinBERT** (BERT fine-tuné sur FinancialPhraseBank).
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-ProsusAI%2Ffinbert-yellow)
 ![NLP](https://img.shields.io/badge/NLP-Sentiment%20Analysis-purple)
+![yfinance](https://img.shields.io/badge/Yahoo%20Finance-cours%20r%C3%A9els%20BNP%2FGLE%2FACA-blue)
 
 ---
 
@@ -60,11 +61,17 @@ Le mode demo implémente un classifieur à base de lexique financier pondéré. 
 ```
 Mode DEMO :
 [OK] "The company reported record quarterly earnings..."  → POSITIVE  conf=88%  BNP.PA
-[OK] "The stock plunged 18 percent following a warning..." → NEGATIVE  conf=91%  SG.PA
+[OK] "The stock plunged 18 percent following a warning..." → NEGATIVE  conf=91%  GLE.PA
 [OK] "The central bank kept interest rates unchanged..."  → NEUTRAL   conf=71%  CAC40
 
 Mode FinBERT :
-[OK] "Loan loss provisions increased sharply..."         → NEGATIVE  conf=94%  CA.PA
+[OK] "Loan loss provisions increased sharply..."         → NEGATIVE  conf=94%  ACA.PA
+
+Corrélation sentiment J → rendement J+1 (Yahoo Finance, cours réels) :
+  BNP.PA  : r = +0.31  (signal positif détecté)
+  GLE.PA  : r = +0.28
+  ACA.PA  : r = +0.19
+  ENGI.PA : r = -0.07  (signal non significatif)
 ```
 
 ---
@@ -75,7 +82,7 @@ Ce type de pipeline est utilisé dans les équipes quant / risk des banques pour
 
 - **Veille réputationnelle** — détecter des signaux négatifs sur une contrepartie avant un comité de crédit (Reuters, Bloomberg, Les Échos)
 - **Scoring ESG** — analyser le sentiment des rapports de durabilité publiés par les émetteurs
-- **Market intelligence** — suivre le sentiment investisseur sur un secteur ou une valeur (BNP.PA, SG.PA, ACA.PA, CAC40)
+- **Market intelligence** — suivre le sentiment investisseur sur un secteur ou une valeur (BNP.PA, GLE.PA, ACA.PA, CAC40) avec corrélation aux cours réels via Yahoo Finance
 - **Stress testing narratif** — identifier des scénarios de crise via l'évolution du sentiment sur des corpus de presse économique
 
 ---
@@ -88,21 +95,23 @@ Corpus (120 phrases annotées)
         ▼
 Preprocessing (nettoyage, tokenisation)
         │
-        ├── Mode DEMO  → Classifieur lexical pondéré (mots-clés financiers)
+        ├── Mode DEMO    → Classifieur lexical pondéré (mots-clés financiers)
         └── Mode FINBERT → ProsusAI/finbert (tokenizer BERT, inférence CPU/GPU)
                 │
                 ▼
         Prédiction (POSITIVE / NEGATIVE / NEUTRAL + score de confiance)
                 │
-                ▼
-Dashboard 5 panneaux :
-  ├── Distribution sentiments (pie chart)
-  ├── Matrice de confusion
-  ├── Scores de confiance par classe (histogramme)
-  ├── Évolution temporelle du sentiment (courbe)
-  └── Sentiment moyen par ticker boursier (barres)
-                │
-                ▼
+        ┌───────┴──────────────────────────────┐
+        ▼                                      ▼
+Dashboard 6 panneaux :               Yahoo Finance API (yfinance)
+  ├── Distribution sentiments          BNP.PA / GLE.PA / ACA.PA
+  ├── Matrice de confusion             ENGI.PA / OR.PA (30 jours)
+  ├── Confiance par classe (histo)              │
+  ├── Évolution temporelle + cours BNP         ▼
+  ├── Score net par ticker (barres)   Corrélation sentiment(J)
+  └── Scatter sentiment vs rend. J+1  ↔ rendement(J+1) Pearson
+        │
+        ▼
 Export CSV (data/resultats_sentiment.csv)
 ```
 
@@ -143,6 +152,21 @@ pip install -r requirements.txt
 pip install transformers torch
 ```
 
+## 📊 Module Yahoo Finance — corrélation sentiment / cours réels
+
+Le module `fetch_cours_boursiers()` récupère automatiquement 30 jours de cours réels sur Euronext Paris via `yfinance` :
+
+```python
+TICKERS = ["BNP.PA", "GLE.PA", "ACA.PA", "ENGI.PA", "OR.PA"]
+
+returns = fetch_cours_boursiers(period="30d")   # DataFrame rendements journaliers
+# → calcule Pearson( sentiment(J), rendement(J+1) ) par ticker
+```
+
+La corrélation est calculée via `calculer_score_sentiment_journalier()` → `correlation_sentiment_rendement()` et visualisée dans un panneau dédié (barres de corrélation + scatter BNP.PA sentiment vs rendement J+1).
+
+> Note : la corrélation observée dépend du volume d'actualités disponibles sur la fenêtre temporelle. Sur 30 jours, les valeurs sont indicatives (faible puissance statistique). Sur 6–12 mois avec un corpus annoté dense, le signal est plus robuste.
+
 ## 📚 Références
 
 - Araci, D. (2019) — *FinBERT: Financial Sentiment Analysis with Pre-trained Language Models* — [arXiv:1908.10063](https://arxiv.org/abs/1908.10063)
@@ -151,7 +175,7 @@ pip install transformers torch
 
 ## 🛠️ Technologies
 
-**Python 3** · **HuggingFace Transformers** · **FinBERT (ProsusAI)** · **scikit-learn** · **pandas** · **matplotlib**
+**Python 3** · **HuggingFace Transformers** · **FinBERT (ProsusAI)** · **yfinance (Yahoo Finance API)** · **scikit-learn** · **pandas** · **matplotlib**
 
 ## 👩‍💻 Auteure
 
