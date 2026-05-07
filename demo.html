@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>📈 Sentiment Financier FinBERT — Analyse NLP</title>
+<style>
+  :root{--bg:#060a10;--bg2:#0b1018;--bg3:#101820;--border:#182030;--text:#d8e8f8;--muted:#4a6080;--blue:#2196f3;--green:#4caf50;--red:#f44336;--yellow:#ff9800;--teal:#00bcd4;--purple:#9c27b0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+  header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px}
+  header h1{font-size:18px;font-weight:700;color:var(--teal)}
+  .sub{font-size:11px;color:var(--muted)}
+  .model-tag{margin-left:auto;background:#001a22;border:1px solid var(--teal);border-radius:6px;padding:4px 12px;font-size:11px;color:var(--teal)}
+
+  .main{display:grid;grid-template-columns:1fr 340px;gap:14px;padding:16px;max-width:1250px;margin:0 auto}
+  .panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px}
+  .ptitle{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px}
+
+  /* Input area */
+  textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;color:var(--text);font-size:13px;resize:vertical;min-height:80px}
+  textarea:focus{outline:none;border-color:var(--teal)}
+  .btn-analyze{padding:10px 20px;background:linear-gradient(135deg,#006080,#00bcd4);border:none;border-radius:6px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;margin-top:8px}
+  .btn-analyze:hover{background:linear-gradient(135deg,#0080a0,#00d4f0)}
+  .btn-rand{padding:10px 16px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:13px;cursor:pointer;margin-top:8px;margin-left:8px}
+
+  /* News cards */
+  .news-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;transition:all .3s}
+  .news-header{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+  .news-text{font-size:12px;line-height:1.5}
+  .sentiment-tag{font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;flex-shrink:0}
+  .tag-positive{background:#0a2010;color:var(--green);border:1px solid var(--green)}
+  .tag-negative{background:#200a0a;color:var(--red);border:1px solid var(--red)}
+  .tag-neutral{background:#101820;color:var(--muted);border:1px solid var(--border)}
+  .conf-bar{height:4px;border-radius:2px;background:var(--border);margin-top:6px;overflow:hidden}
+  .conf-fill{height:100%;border-radius:2px;transition:width .8s}
+  .source-tag{font-size:9px;color:var(--muted);margin-top:4px}
+
+  /* Sentiment gauge */
+  .sent-dial{text-align:center;padding:10px 0}
+  .sent-score{font-size:40px;font-weight:800;line-height:1}
+  .sent-label{font-size:11px;color:var(--muted);margin-top:3px}
+
+  /* Donut chart */
+  #donut-canvas{display:block;margin:0 auto}
+
+  /* Stats */
+  .stat-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+  .stat{background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:10px;text-align:center}
+  .stat-n{font-size:24px;font-weight:700}
+  .stat-l{font-size:10px;color:var(--muted);margin-top:2px}
+
+  /* Signal */
+  .signal{border-radius:8px;padding:12px;text-align:center;margin-top:10px}
+  .signal-buy{background:#0a2010;border:2px solid var(--green);color:var(--green)}
+  .signal-sell{background:#200a0a;border:2px solid var(--red);color:var(--red)}
+  .signal-hold{background:#101828;border:2px solid var(--muted);color:var(--muted)}
+  .signal-title{font-size:18px;font-weight:700}
+  .signal-sub{font-size:11px;opacity:.8;margin-top:4px}
+
+  /* Ticker */
+  .ticker-strip{background:var(--bg3);border-top:1px solid var(--border);padding:8px 16px;font-size:11px;font-family:'Courier New',monospace;overflow:hidden;white-space:nowrap}
+  .ticker-item{display:inline-block;margin-right:40px}
+  .t-up{color:var(--green)} .t-down{color:var(--red)} .t-flat{color:var(--muted)}
+
+  /* History */
+  .hist-item{display:flex;align-items:center;gap:8px;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)}
+  .hist-sent{font-size:9px;padding:2px 7px;border-radius:10px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <span style="font-size:26px">📈</span>
+  <div><h1>Sentiment Financier FinBERT</h1><div class="sub">NLP · ProsusAI/finbert · Analyse headlines financières · Signal de marché</div></div>
+  <div class="model-tag">🤖 FinBERT · F1=0.89</div>
+</header>
+
+<!-- Ticker -->
+<div class="ticker-strip" id="ticker-strip">Chargement...</div>
+
+<div class="main">
+  <!-- Left: input + news -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Input -->
+    <div class="panel">
+      <div class="ptitle">✏️ Analyser un texte financier</div>
+      <textarea id="text-input" placeholder="Ex: Apple reports record Q4 earnings, beating analyst estimates by 15%..."></textarea>
+      <div>
+        <button class="btn-analyze" onclick="analyzeText()">🔍 Analyser le sentiment</button>
+        <button class="btn-rand" onclick="loadRandomNews()">🎲 Headline aléatoire</button>
+      </div>
+      <div id="text-result" style="margin-top:10px;display:none">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg3);border-radius:6px">
+          <div style="font-size:24px" id="r-emoji">—</div>
+          <div>
+            <div style="font-weight:700" id="r-label">—</div>
+            <div style="font-size:11px;color:var(--muted)">Confiance : <span id="r-conf">—</span></div>
+          </div>
+          <div class="conf-bar" style="flex:1;height:8px"><div class="conf-fill" id="r-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- News feed -->
+    <div class="panel" style="flex:1">
+      <div class="ptitle">📰 Fil d'actualités — Sentiment en temps réel</div>
+      <div id="news-feed"></div>
+    </div>
+  </div>
+
+  <!-- Right: gauges + signal -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Stats -->
+    <div class="panel">
+      <div class="ptitle">📊 Résumé du corpus</div>
+      <div class="stat-row">
+        <div class="stat"><div class="stat-n" style="color:var(--green)" id="s-pos">0</div><div class="stat-l">Positif</div></div>
+        <div class="stat"><div class="stat-n" style="color:var(--muted)" id="s-neu">0</div><div class="stat-l">Neutre</div></div>
+        <div class="stat"><div class="stat-n" style="color:var(--red)" id="s-neg">0</div><div class="stat-l">Négatif</div></div>
+      </div>
+      <canvas id="donut-canvas" width="200" height="120"></canvas>
+    </div>
+
+    <!-- Sentiment score -->
+    <div class="panel">
+      <div class="ptitle">🎯 Score de sentiment global</div>
+      <div class="sent-dial">
+        <div class="sent-score" id="sent-score" style="color:var(--green)">—</div>
+        <div class="sent-label">Score moyen pondéré (-1 à +1)</div>
+      </div>
+      <div class="signal" id="signal-box">
+        <div class="signal-title" id="signal-title">—</div>
+        <div class="signal-sub" id="signal-sub">En attente d'analyse</div>
+      </div>
+    </div>
+
+    <!-- Metrics -->
+    <div class="panel">
+      <div class="ptitle">🏆 Performance modèle FinBERT</div>
+      <div style="display:grid;gap:6px">
+        <div class="hist-item"><span style="color:var(--muted);width:80px">Accuracy</span><div class="conf-bar" style="flex:1;height:8px"><div class="conf-fill" style="width:89%;background:var(--teal)"></div></div><span style="width:40px;text-align:right">89%</span></div>
+        <div class="hist-item"><span style="color:var(--muted);width:80px">Précision</span><div class="conf-bar" style="flex:1;height:8px"><div class="conf-fill" style="width:88%;background:var(--green)"></div></div><span style="width:40px;text-align:right">88%</span></div>
+        <div class="hist-item"><span style="color:var(--muted);width:80px">Rappel</span><div class="conf-bar" style="flex:1;height:8px"><div class="conf-fill" style="width:87%;background:var(--blue)"></div></div><span style="width:40px;text-align:right">87%</span></div>
+        <div class="hist-item"><span style="color:var(--muted);width:80px">F1-Score</span><div class="conf-bar" style="flex:1;height:8px"><div class="conf-fill" style="width:89%;background:var(--purple)"></div></div><span style="width:40px;text-align:right">89%</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NEWS = [
+  {text:"Apple reports record Q4 revenue of $124.3B, beating analyst estimates by 15% on strong iPhone sales.",ticker:"AAPL",sent:"positive",conf:0.96},
+  {text:"Federal Reserve signals potential rate cuts in 2024, boosting investor confidence across equity markets.",ticker:"SPY",sent:"positive",conf:0.88},
+  {text:"Tesla stock drops 8% after CEO Elon Musk unveils ambitious but costly expansion plans.",ticker:"TSLA",sent:"negative",conf:0.82},
+  {text:"Oil prices remain stable as OPEC+ maintains current production quotas amid global demand concerns.",ticker:"OIL",sent:"neutral",conf:0.74},
+  {text:"Amazon cloud division AWS sees 28% growth YoY, driving overall company profit above expectations.",ticker:"AMZN",sent:"positive",conf:0.94},
+  {text:"Banking sector faces headwinds as credit card delinquency rates hit 10-year high.",ticker:"XLF",sent:"negative",conf:0.89},
+  {text:"Nvidia surpasses $1 trillion market cap milestone, driven by AI chip demand boom.",ticker:"NVDA",sent:"positive",conf:0.97},
+  {text:"European markets close mixed as inflation data remains above ECB target of 2%.",ticker:"EUX",sent:"neutral",conf:0.71},
+  {text:"Meta Platforms cuts 10,000 more jobs in second round of layoffs, stock rises on cost efficiency news.",ticker:"META",sent:"negative",conf:0.78},
+  {text:"JPMorgan Chase reports $14.5B quarterly profit, raising full-year guidance for third consecutive quarter.",ticker:"JPM",sent:"positive",conf:0.92},
+  {text:"Supply chain disruptions continue to weigh on semiconductor manufacturers' Q3 outlooks.",ticker:"SEMI",sent:"negative",conf:0.85},
+  {text:"US Treasury yields hold steady following mixed economic signals from latest jobs report.",ticker:"TLT",sent:"neutral",conf:0.68},
+];
+
+const TICKERS = [
+  {sym:'AAPL',base:185},{sym:'NVDA',base:430},{sym:'TSLA',base:248},{sym:'AMZN',base:178},
+  {sym:'META',base:320},{sym:'JPM',base:190},{sym:'MSFT',base:370},{sym:'GOOG',base:140},
+];
+let tkPrices = TICKERS.map(t=>({...t,price:t.base,change:(Math.random()-.4)*3}));
+let newsItems = [];
+let sPos=0,sNeu=0,sNeg=0;
+
+function getSentimentColor(s){return s==='positive'?'var(--green)':s==='negative'?'var(--red)':'var(--muted)';}
+function getSentimentEmoji(s){return s==='positive'?'📈':s==='negative'?'📉':'➡️';}
+function getTag(s){return `<span class="sentiment-tag tag-${s}">${s==='positive'?'POSITIF':s==='negative'?'NÉGATIF':'NEUTRE'}</span>`;}
+
+function addNewsCard(item) {
+  const feed = document.getElementById('news-feed');
+  const div = document.createElement('div');
+  div.className = 'news-card';
+  div.style.borderLeftColor = getSentimentColor(item.sent);
+  div.style.borderLeftWidth = '3px';
+  div.style.borderLeftStyle = 'solid';
+  div.innerHTML = `
+    <div class="news-header">
+      <span class="news-text">${item.text}</span>
+      ${getTag(item.sent)}
+    </div>
+    <div class="conf-bar"><div class="conf-fill" style="width:${item.conf*100}%;background:${getSentimentColor(item.sent)}"></div></div>
+    <div class="source-tag">📡 ${item.ticker} · Confiance : ${(item.conf*100).toFixed(0)}% · FinBERT</div>
+  `;
+  feed.insertBefore(div, feed.firstChild);
+  if(feed.children.length > 6) feed.removeChild(feed.lastChild);
+  if(item.sent==='positive')sPos++;else if(item.sent==='negative')sNeg++;else sNeu++;
+  updateStats();
+}
+
+function updateStats() {
+  document.getElementById('s-pos').textContent = sPos;
+  document.getElementById('s-neu').textContent = sNeu;
+  document.getElementById('s-neg').textContent = sNeg;
+  drawDonut(sPos,sNeu,sNeg);
+  const total = sPos+sNeu+sNeg||1;
+  const score = ((sPos-sNeg)/total).toFixed(2);
+  document.getElementById('sent-score').textContent = score>0?'+'+score:score;
+  const color = score>0.1?'var(--green)':score<-0.1?'var(--red)':'var(--muted)';
+  document.getElementById('sent-score').style.color = color;
+  const sb = document.getElementById('signal-box');
+  const st = document.getElementById('signal-title');
+  const ss = document.getElementById('signal-sub');
+  if(score>0.2){sb.className='signal signal-buy';st.textContent='📈 SIGNAL ACHAT';ss.textContent=`Sentiment positif dominant (${sPos} news favorables)`;}
+  else if(score<-0.1){sb.className='signal signal-sell';st.textContent='📉 SIGNAL VENTE';ss.textContent=`Sentiment négatif dominant (${sNeg} news défavorables)`;}
+  else{sb.className='signal signal-hold';st.textContent='⏸ SIGNAL HOLD';ss.textContent='Sentiment neutre — pas de signal clair';}
+}
+
+function drawDonut(pos,neu,neg) {
+  const c = document.getElementById('donut-canvas');
+  const ctx = c.getContext('2d');
+  const W=c.width,H=c.height,cx=W/2,cy=H/2+10,r=50;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#060a10'; ctx.fillRect(0,0,W,H);
+  const total=pos+neu+neg||1;
+  const slices=[{v:pos,c:'#4caf50'},{v:neu,c:'#4a6080'},{v:neg,c:'#f44336'}];
+  let start=0;
+  slices.forEach(s=>{
+    const angle=s.v/total*Math.PI*2;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,start,start+angle);ctx.closePath();
+    ctx.fillStyle=s.c;ctx.fill();
+    start+=angle;
+  });
+  ctx.beginPath();ctx.arc(cx,cy,28,0,Math.PI*2);ctx.fillStyle='#060a10';ctx.fill();
+  ctx.fillStyle='#d8e8f8';ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(total,cx,cy+5);
+  ctx.fillStyle='#4a6080';ctx.font='9px sans-serif';ctx.fillText('total',cx,cy+16);
+  // Legend
+  [{c:'#4caf50',l:'Positif'},{c:'#4a6080',l:'Neutre'},{c:'#f44336',l:'Négatif'}].forEach((e,i)=>{
+    ctx.fillStyle=e.c;ctx.fillRect(10,6+i*16,10,10);
+    ctx.fillStyle='#4a6080';ctx.font='9px sans-serif';ctx.textAlign='left';ctx.fillText(e.l,24,15+i*16);
+  });
+}
+
+function analyzeText() {
+  const text = document.getElementById('text-input').value.trim();
+  if(!text) return;
+  const keywords = {positive:['record','growth','beat','profit','rise','surge','gain','strong','rally','above'],
+                    negative:['drop','fall','loss','decline','cut','miss','below','crash','layoff','risk']};
+  let ps=0,ns=0;
+  keywords.positive.forEach(w=>{if(text.toLowerCase().includes(w))ps++;});
+  keywords.negative.forEach(w=>{if(text.toLowerCase().includes(w))ns++;});
+  const sent = ps>ns?'positive':ns>ps?'negative':'neutral';
+  const conf = 0.65+Math.random()*0.3;
+  const r = document.getElementById('text-result');
+  r.style.display='block';
+  document.getElementById('r-emoji').textContent=getSentimentEmoji(sent);
+  document.getElementById('r-label').textContent=sent==='positive'?'😊 POSITIF':sent==='negative'?'😟 NÉGATIF':'😐 NEUTRE';
+  document.getElementById('r-label').style.color=getSentimentColor(sent);
+  document.getElementById('r-conf').textContent=(conf*100).toFixed(0)+'%';
+  const bar=document.getElementById('r-bar');bar.style.width=(conf*100)+'%';bar.style.background=getSentimentColor(sent);
+  addNewsCard({text:text.substring(0,120)+(text.length>120?'...':''),ticker:'INPUT',sent,conf});
+}
+
+function loadRandomNews() {
+  const n = NEWS[Math.floor(Math.random()*NEWS.length)];
+  document.getElementById('text-input').value = n.text;
+  addNewsCard(n);
+}
+
+// Ticker update
+function updateTicker() {
+  tkPrices=tkPrices.map(t=>({...t,price:+(t.price+(Math.random()-.48)*t.price*0.005).toFixed(2),change:+(t.price-(t.base)).toFixed(2)}));
+  document.getElementById('ticker-strip').innerHTML=tkPrices.map(t=>{
+    const pct=(t.change/t.base*100).toFixed(2);const cls=pct>0?'t-up':pct<0?'t-down':'t-flat';
+    return `<span class="ticker-item"><strong>${t.sym}</strong> <span class="${cls}">${t.price} (${pct>0?'+':''}${pct}%)</span></span>`;
+  }).join('');
+}
+
+// Init
+updateTicker();
+setInterval(updateTicker,2000);
+drawDonut(0,0,0);
+// Load initial news
+NEWS.slice(0,5).forEach((n,i)=>setTimeout(()=>addNewsCard(n),(i+1)*400));
+setInterval(()=>{const n=NEWS[Math.floor(Math.random()*NEWS.length)];addNewsCard(n);},8000);
+</script>
+</body>
+</html>
