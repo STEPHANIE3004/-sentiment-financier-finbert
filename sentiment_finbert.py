@@ -5,8 +5,13 @@ Auteure : Vanelle Stephanie MANGOUA DJOUSSEU
 Architecture : ProsusAI/finbert (BERT fine-tune sur textes financiers)
 Cas d'usage  : analyse de news financieres + correlation avec cours boursiers reels
 
+Dataset      : FinancialPhraseBank (Malo et al., 2014) — 4840 vraies phrases financieres
+               annotees par 16 experts. Telecharge automatiquement via HuggingFace datasets.
+               Cache local : data/financial_phrasebank.csv (pas de re-telechargement)
+               Reference : Aalto University School of Business — sentences_allagree
+
 Modes :
-  - Mode DEMO    (defaut) : classifieur lexical heuristique, sans telechargement
+  - Mode DEMO    (defaut) : classifieur lexical heuristique, sans telechargement FinBERT
   - Mode FINBERT          : vrai modele HuggingFace ProsusAI/finbert (~500MB)
     python sentiment_finbert.py --mode finbert
 
@@ -80,6 +85,48 @@ PHRASES_NEUTRES = [
 
 LABELS_STR = {0: "positive", 1: "negative", 2: "neutral"}
 COLORS     = {"positive": "#2ca02c", "negative": "#d62728", "neutral": "#1f77b4"}
+
+
+# --------------------------------------------------------------------------
+# FinancialPhraseBank (Malo et al., 2014) — dataset reel
+# 4840 phrases financieres extraites de Reuters, Bloomberg, WSJ
+# annotees par 16 experts financiers — Aalto University School of Business
+# --------------------------------------------------------------------------
+
+def charger_financial_phrasebank(csv_cache="data/financial_phrasebank.csv"):
+    """
+    Charge FinancialPhraseBank depuis le cache local ou HuggingFace.
+    Premier lancement : telecharge ~1MB et sauvegarde en CSV.
+    Lancements suivants : lecture directe du CSV (pas d'internet).
+    """
+    os.makedirs("data", exist_ok=True)
+
+    # Cache local en priorite
+    if os.path.exists(csv_cache):
+        print("[DATA] FinancialPhraseBank — lecture cache local ({})".format(csv_cache))
+        df = pd.read_csv(csv_cache)
+        print("[DATA] {} phrases financieres reelles chargees".format(len(df)))
+        return df
+
+    # Telechargement HuggingFace
+    try:
+        print("[DATA] Telechargement FinancialPhraseBank (Malo et al., 2014) ...")
+        print("[DATA] Source : HuggingFace — sentences_allagree (~1MB)")
+        from datasets import load_dataset
+        dataset = load_dataset("financial_phrasebank", "sentences_allagree",
+                               trust_remote_code=True)
+        df_raw = dataset["train"].to_pandas()
+        # Mapping labels : 0=negative, 1=neutral, 2=positive
+        label_map = {0: "negative", 1: "neutral", 2: "positive"}
+        df_raw["label_reel"] = df_raw["label"].map(label_map)
+        df_raw = df_raw.rename(columns={"sentence": "texte"})[["texte", "label_reel"]]
+        df_raw.to_csv(csv_cache, index=False)
+        print("[DATA] {} phrases sauvegardees -> {}".format(len(df_raw), csv_cache))
+        return df_raw
+    except Exception as e:
+        print("[FALLBACK] FinancialPhraseBank indisponible ({})".format(e))
+        print("[FALLBACK] Corpus interne active (installer : pip install datasets)")
+        return None
 
 
 # --------------------------------------------------------------------------
@@ -157,28 +204,53 @@ def predict_finbert(nlp, texte):
 # --------------------------------------------------------------------------
 
 def construire_dataset(n_par_classe=40, seed=42):
+    """
+    Charge n_par_classe phrases par classe depuis FinancialPhraseBank (dataset reel).
+    Fallback automatique sur corpus interne si HuggingFace indisponible.
+    """
     random.seed(seed)
-    rows = []
 
-    for texte in random.sample(PHRASES_POSITIVES * 4, min(n_par_classe, len(PHRASES_POSITIVES) * 4)):
-        rows.append({"texte": texte, "label_reel": "positive"})
-    for texte in random.sample(PHRASES_NEGATIVES * 4, min(n_par_classe, len(PHRASES_NEGATIVES) * 4)):
-        rows.append({"texte": texte, "label_reel": "negative"})
-    for texte in random.sample(PHRASES_NEUTRES * 4, min(n_par_classe, len(PHRASES_NEUTRES) * 4)):
-        rows.append({"texte": texte, "label_reel": "neutral"})
+    # Essayer FinancialPhraseBank reel
+    df_real = charger_financial_phrasebank()
 
-    # Ajouter des timestamps simules (30 derniers jours)
+    if df_real is not None:
+        # Echantillonner n_par_classe phrases par classe
+        frames = []
+        for label in ["positive", "negative", "neutral"]:
+            subset = df_real[df_real["label_reel"] == label]
+            n = min(n_par_classe, len(subset))
+            frames.append(subset.sample(n=n, random_state=seed))
+        df = pd.concat(frames, ignore_index=True).sample(
+            frac=1, random_state=seed).reset_index(drop=True)
+        print("[DATA] Dataset reel : {} phrases FinancialPhraseBank".format(len(df)))
+    else:
+        # Fallback corpus interne
+        rows = []
+        for texte in random.sample(PHRASES_POSITIVES * 4,
+                                    min(n_par_classe, len(PHRASES_POSITIVES) * 4)):
+            rows.append({"texte": texte, "label_reel": "positive"})
+        for texte in random.sample(PHRASES_NEGATIVES * 4,
+                                    min(n_par_classe, len(PHRASES_NEGATIVES) * 4)):
+            rows.append({"texte": texte, "label_reel": "negative"})
+        for texte in random.sample(PHRASES_NEUTRES * 4,
+                                    min(n_par_classe, len(PHRASES_NEUTRES) * 4)):
+            rows.append({"texte": texte, "label_reel": "neutral"})
+        random.shuffle(rows)
+        df = pd.DataFrame(rows)
+        print("[DATA] Dataset fallback : {} phrases corpus interne".format(len(df)))
+
+    # Ajouter timestamps et metadonnees (simulation dates de publication)
     base_date = datetime.now()
-    for i, row in enumerate(rows):
+    sources = ["Reuters", "Bloomberg", "Les Echos", "Financial Times",
+               "BFM Business", "Wall Street Journal"]
+    tickers = ["BNP.PA", "GLE.PA", "ACA.PA", "ENGI.PA", "OR.PA", "CAC40"]
+    for i in df.index:
         delta = timedelta(days=random.randint(0, 29), hours=random.randint(0, 23))
-        row["date"] = (base_date - delta).strftime("%Y-%m-%d")
-        row["source"] = random.choice(["Reuters", "Bloomberg", "Les Echos",
-                                        "Financial Times", "BFM Business"])
-        row["ticker"] = random.choice(["BNP.PA", "GLE.PA", "ACA.PA",
-                                        "ENGI.PA", "OR.PA", "CAC40"])
+        df.at[i, "date"]   = (base_date - delta).strftime("%Y-%m-%d")
+        df.at[i, "source"] = random.choice(sources)
+        df.at[i, "ticker"] = random.choice(tickers)
 
-    random.shuffle(rows)
-    return pd.DataFrame(rows)
+    return df
 
 
 # --------------------------------------------------------------------------
