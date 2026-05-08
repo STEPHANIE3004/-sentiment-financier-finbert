@@ -44,7 +44,7 @@ Les métriques suivantes proviennent de la publication originale **Araci (2019)*
 
 ### Mode DEMO (classifieur lexical)
 
-Le mode demo implémente un classifieur à base de lexique financier pondéré. Ses performances **sur notre corpus de 120 phrases** :
+Le mode demo implémente un classifieur à base de lexique financier pondéré, évalué sur un sous-ensemble de **FinancialPhraseBank** (Malo et al., 2014) — corpus académique de référence comprenant **4 840 phrases financières réelles** annotées par 16 experts :
 
 | Classe | Précision estimée | Rappel estimé |
 |--------|------------------|--------------|
@@ -90,7 +90,9 @@ Ce type de pipeline est utilisé dans les équipes quant / risk des banques pour
 ## 🔧 Pipeline implémenté
 
 ```
-Corpus (120 phrases annotées)
+FinancialPhraseBank — Malo et al. (2014)
+  4 840 phrases réelles annotées par 16 experts
+  (téléchargé via HuggingFace, cache CSV local)
         │
         ▼
 Preprocessing (nettoyage, tokenisation)
@@ -123,7 +125,7 @@ Export CSV (data/resultats_sentiment.csv)
 
 **FinBERT est pré-entraîné, pas fine-tuné sur nos données.** On utilise `ProsusAI/finbert` tel quel. Un fine-tuning sur un corpus annoté spécifique (ex: rapports BNP Paribas, communiqués BCE) améliorerait les performances sur ce domaine précis.
 
-**Corpus de 120 phrases = taille limitée.** Les métriques calculées localement ne sont pas significatives statistiquement. Une évaluation robuste nécessiterait le dataset complet FinancialPhraseBank (4 840 phrases).
+**Corpus extrait de FinancialPhraseBank.** Le pipeline utilise un sous-ensemble équilibré du dataset Malo et al. (2014) — les métriques du mode demo sont indicatives sur ce sous-ensemble. Une évaluation robuste utiliserait l'intégralité des 4 840 phrases en validation croisée.
 
 **Pas de gestion multilingue.** FinBERT est entraîné sur des textes anglais. Les textes en français (Les Échos, communiqués AMF) nécessiteraient un modèle adapté (CamemBERT-Finance ou traduction préalable).
 
@@ -135,8 +137,8 @@ Export CSV (data/resultats_sentiment.csv)
 sentiment-financier-finbert/
 ├── sentiment_finbert.py        ← Pipeline principal (demo + FinBERT)
 ├── data/
-│   ├── phrases_financieres.csv ← Corpus 120 phrases annotées
-│   └── resultats_sentiment.csv ← Prédictions exportées
+│   ├── financial_phrasebank.csv ← FinancialPhraseBank réel (Malo et al. 2014, cache local)
+│   └── resultats_sentiment.csv  ← Prédictions exportées
 ├── docs/
 │   └── screenshot_sentiment.png
 ├── requirements.txt
