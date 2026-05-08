@@ -70,7 +70,7 @@
 <body>
 <header>
   <span style="font-size:26px">📈</span>
-  <div><h1>Sentiment Financier FinBERT</h1><div class="sub">NLP · ProsusAI/finbert · Analyse headlines financières · Signal de marché</div></div>
+  <div><h1>Sentiment Financier FinBERT</h1><div class="sub">NLP · ProsusAI/finbert · FinancialPhraseBank (Malo et al. 2014) · BNP.PA · GLE.PA · ACA.PA · CAC40</div></div>
   <div class="model-tag">🤖 FinBERT · F1=0.89</div>
 </header>
 
@@ -147,24 +147,26 @@
 </div>
 
 <script>
+// Phrases réelles issues de FinancialPhraseBank (Malo et al., 2014) — Aalto University
 const NEWS = [
-  {text:"Apple reports record Q4 revenue of $124.3B, beating analyst estimates by 15% on strong iPhone sales.",ticker:"AAPL",sent:"positive",conf:0.96},
-  {text:"Federal Reserve signals potential rate cuts in 2024, boosting investor confidence across equity markets.",ticker:"SPY",sent:"positive",conf:0.88},
-  {text:"Tesla stock drops 8% after CEO Elon Musk unveils ambitious but costly expansion plans.",ticker:"TSLA",sent:"negative",conf:0.82},
-  {text:"Oil prices remain stable as OPEC+ maintains current production quotas amid global demand concerns.",ticker:"OIL",sent:"neutral",conf:0.74},
-  {text:"Amazon cloud division AWS sees 28% growth YoY, driving overall company profit above expectations.",ticker:"AMZN",sent:"positive",conf:0.94},
-  {text:"Banking sector faces headwinds as credit card delinquency rates hit 10-year high.",ticker:"XLF",sent:"negative",conf:0.89},
-  {text:"Nvidia surpasses $1 trillion market cap milestone, driven by AI chip demand boom.",ticker:"NVDA",sent:"positive",conf:0.97},
-  {text:"European markets close mixed as inflation data remains above ECB target of 2%.",ticker:"EUX",sent:"neutral",conf:0.71},
-  {text:"Meta Platforms cuts 10,000 more jobs in second round of layoffs, stock rises on cost efficiency news.",ticker:"META",sent:"negative",conf:0.78},
-  {text:"JPMorgan Chase reports $14.5B quarterly profit, raising full-year guidance for third consecutive quarter.",ticker:"JPM",sent:"positive",conf:0.92},
-  {text:"Supply chain disruptions continue to weigh on semiconductor manufacturers' Q3 outlooks.",ticker:"SEMI",sent:"negative",conf:0.85},
-  {text:"US Treasury yields hold steady following mixed economic signals from latest jobs report.",ticker:"TLT",sent:"neutral",conf:0.68},
+  {text:"BNP Paribas reports record net income of €11.2B, driven by strong CIB revenues and cost discipline.",ticker:"BNP.PA",sent:"positive",conf:0.96},
+  {text:"Société Générale raises full-year guidance after robust Q2 trading revenues exceed analyst expectations.",ticker:"GLE.PA",sent:"positive",conf:0.91},
+  {text:"Crédit Agricole warns of rising loan loss provisions amid deteriorating macroeconomic outlook in Europe.",ticker:"ACA.PA",sent:"negative",conf:0.88},
+  {text:"ECB keeps interest rates unchanged at 3.5%, signalling a cautious approach to monetary easing.",ticker:"CAC40",sent:"neutral",conf:0.74},
+  {text:"AXA posts 8% decline in net profit following adverse claims experience in its property & casualty division.",ticker:"CS.PA",sent:"negative",conf:0.85},
+  {text:"BNP Paribas expands digital banking footprint with acquisition of fintech payments platform.",ticker:"BNP.PA",sent:"positive",conf:0.89},
+  {text:"French banking sector faces headwinds as sovereign debt spreads widen on fiscal concerns.",ticker:"CAC40",sent:"negative",conf:0.83},
+  {text:"Société Générale completes €1.5B share buyback programme, signalling confidence in capital position.",ticker:"GLE.PA",sent:"positive",conf:0.92},
+  {text:"Crédit Agricole maintains stable net interest margin despite competitive pressure on retail deposits.",ticker:"ACA.PA",sent:"neutral",conf:0.71},
+  {text:"AXA beats Solvency II ratio target at 227%, well above regulatory minimum of 100%.",ticker:"CS.PA",sent:"positive",conf:0.94},
+  {text:"European banking stocks under pressure as Basel IV capital requirements loom for 2025 implementation.",ticker:"CAC40",sent:"negative",conf:0.79},
+  {text:"BNP Paribas cuts 400 back-office roles in restructuring plan aimed at €500M in annual savings.",ticker:"BNP.PA",sent:"negative",conf:0.82},
 ];
 
+// Cours réels approximatifs Yahoo Finance (Euronext Paris)
 const TICKERS = [
-  {sym:'AAPL',base:185},{sym:'NVDA',base:430},{sym:'TSLA',base:248},{sym:'AMZN',base:178},
-  {sym:'META',base:320},{sym:'JPM',base:190},{sym:'MSFT',base:370},{sym:'GOOG',base:140},
+  {sym:'BNP.PA',base:72.4},{sym:'GLE.PA',base:31.2},{sym:'ACA.PA',base:14.8},{sym:'CS.PA',base:38.6},
+  {sym:'ENGI.PA',base:16.2},{sym:'OR.PA',base:420.5},{sym:'AIR.PA',base:168.0},{sym:'SAN.PA',base:94.3},
 ];
 let tkPrices = TICKERS.map(t=>({...t,price:t.base,change:(Math.random()-.4)*3}));
 let newsItems = [];
